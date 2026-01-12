@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>新生兒急救小幫手 v4.1 </title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --primary: #0e2f5f;
+            --secondary: #3a577b;
+            --accent: #5188cc;
+            --highlight: #ff6a00;
+            --highlight-bg: #fff3e0;
+            --bg: #f4f7f6;
+            --white: #ffffff;
+            --chat-bg: #eef1f5;
+            --user-msg: #3a577b;
+            --system-msg: #ffffff;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #333;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: var(--white);
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            padding-bottom: 70px;
+            position: relative;
+        }
+
+        .content-pad { padding: 20px; }
+        .tab-content { display: none; height: 100%; }
+        .tab-content.active { display: block; }
+
+        /* ============ Part 1: Flow Chart Styles (From v2.1) ============ */
+        .flow-nav {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .flow-btn {
+            background: var(--white);
+            border: 1px solid var(--secondary);
+            color: var(--secondary);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+        .flow-btn.active {
+            background: var(--secondary);
+            color: var(--white);
+            box-shadow: 0 2px 5px rgba(58, 87, 123, 0.3);
+        }
+
+        .flow-wrapper {
+            position: relative;
+            min-height: 400px;
+        }
+
+        .mermaid-container {
+            background: white;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            width: 100%;
+            box-sizing: border-box;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            position: relative;
+            z-index: 1;
+        }
+
+        .mermaid-hidden {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            z-index: -1;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .hint-text {
+            text-align: center;
+            color: var(--highlight);
+            font-size: 0.85rem;
+            margin-top: 10px;
+            background-color: var(--highlight-bg);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px dashed var(--highlight);
+            margin-bottom: 15px;
+        }
+
+        /* ============ Part 2: Chatbot Styles ============ */
+        .chat-layout { display: flex; flex-direction: column; height: 100%; background-color: var(--chat-bg); }
+        .status-bar { background: white; padding: 10px 15px; display: flex; justify-content: center; align-items: center; border-bottom: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); min-height: 40px; }
+        .scenario-tag { background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
+        .chat-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .msg { max-width: 85%; padding: 12px 16px; border-radius: 12px; font-size: 0.95rem; line-height: 1.5; position: relative; animation: slideIn 0.3s ease; }
+        .msg-sys { align-self: flex-start; background-color: var(--system-msg); color: #333; border-bottom-left-radius: 2px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .msg-sys::before { content: "🤖"; position: absolute; left: -25px; top: 0; font-size: 1.2rem; }
+        .msg-user { align-self: flex-end; background-color: var(--user-msg); color: white; border-bottom-right-radius: 2px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .options-area { background: white; padding: 15px; border-top: 1px solid #eee; }
+        .option-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .opt-btn { padding: 12px; border: 1px solid var(--secondary); background: white; color: var(--secondary); border-radius: 8px; font-size: 1rem; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .opt-btn:active { background: var(--secondary); color: white; }
+        .game-over { color: #d32f2f; font-weight: bold; text-align: center; padding: 10px; background: #ffebee; border-radius: 8px; margin-top: 10px; }
+        .game-success { color: #2e7d32; font-weight: bold; text-align: center; padding: 10px; background: #e8f5e9; border-radius: 8px; margin-top: 10px; }
+
+        /* ============ Part 3: Calculator Styles ============ */
+        .calc-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; }
+        .input-group { margin-bottom: 25px; text-align: center; }
+        .input-group label { display: block; margin-bottom: 10px; font-weight: bold; color: var(--primary); font-size: 1.1rem; }
+        .input-group input { font-size: 1.5rem; padding: 10px; width: 140px; text-align: center; border: 2px solid var(--secondary); border-radius: 8px; color: var(--primary); outline: none; }
+        .result-box { background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 5px solid var(--secondary); display: flex; justify-content: space-between; align-items: center; }
+        .result-box.highlight { border-left-color: var(--highlight); background-color: #fff8e1; }
+        .result-title { font-size: 0.95rem; color: #555; font-weight: bold; }
+        .result-value { font-size: 1.3rem; color: var(--primary); font-weight: bold; }
+        .result-value.highlight-text { color: #d84315; }
+
+        /* ============ Part 4: Metronome Styles ============ */
+        .metro-container { text-align: center; max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .visual-beat { display: flex; justify-content: center; gap: 15px; margin: 30px 0; }
+        .beat-circle { width: 60px; height: 60px; border-radius: 50%; background-color: #e0e0e0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; transition: all 0.1s; }
+        .beat-circle.active { transform: scale(1.1); box-shadow: 0 0 15px var(--highlight); }
+        .beat-1.active, .beat-2.active, .beat-3.active { background-color: var(--secondary); color: white; }
+        .beat-breath.active { background-color: var(--highlight); color: white; }
+        .metro-btn { background-color: var(--highlight); color: white; border: none; padding: 15px 40px; font-size: 1.5rem; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 0 #bf360c; }
+        .metro-btn.playing { background-color: #d32f2f; box-shadow: 0 4px 0 #b71c1c; }
+
+        /* ============ Part 5: Apgar Styles ============ */
+        .apgar-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; }
+        .timer-display { font-size: 3.5rem; font-weight: bold; color: var(--primary); text-align: center; margin: 10px 0; font-variant-numeric: tabular-nums; }
+        .timer-controls { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .timer-btn { padding: 8px 25px; border-radius: 20px; font-size: 1rem; cursor: pointer; border: none; font-weight: bold; }
+        .btn-start { background: #2e7d32; color: white; }
+        .btn-reset { background: #d32f2f; color: white; }
+        .apgar-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .apgar-row { border-bottom: 1px solid #eee; }
+        .apgar-label { font-weight: bold; padding: 10px 0; color: var(--secondary); }
+        .apgar-options { display: flex; gap: 5px; padding-bottom: 10px; }
+        .apgar-opt { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 8px 2px; text-align: center; cursor: pointer; font-size: 0.85rem; color: #666; transition: all 0.2s; }
+        .apgar-opt.selected { background-color: var(--secondary); color: white; border-color: var(--secondary); }
+        .score-display { text-align: center; margin-top: 15px; padding: 15px; background: #f0f4f8; border-radius: 10px; }
+        .total-score { font-size: 2rem; font-weight: bold; color: var(--highlight); }
+        .record-area { margin-top: 15px; display: flex; gap: 10px; justify-content: center; }
+        .record-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .record-result { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9rem; color: #555; background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #eee; }
+
+        /* ============ Modal Styles (From v2.1) ============ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(14, 47, 95, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        .modal-card {
+            background: white;
+            width: 85%;
+            max-width: 400px;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-top: 6px solid var(--highlight);
+        }
+        @keyframes popIn { from {transform: scale(0.8); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+        
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        .modal-body {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #444;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .modal-body ul { padding-left: 20px; margin: 5px 0; }
+        .modal-body li { margin-bottom: 5px; }
+        .modal-close {
+            margin-top: 15px;
+            width: 100%;
+            padding: 10px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        /* ============ Navigation ============ */
+        nav { position: fixed; bottom: 0; width: 100%; background-color: var(--white); display: flex; justify-content: space-around; padding: 8px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 20; border-top: 1px solid #eee; }
+        nav button { background: none; border: none; color: #999; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; cursor: pointer; width: 20%; }
+        nav button.active { color: var(--primary); font-weight: bold; }
+        nav button span { font-size: 1.4rem; margin-bottom: 2px; }
+    </style>
+</head>
+<body>
+
+<header>NeoAI 新生兒急救小幫手</header>
+
+<main>
+    <div id="tab1" class="tab-content active">
+        <div class="content-pad">
+            <div class="flow-nav">
+                <button class="flow-btn active" onclick="switchFlow('flow1')">1. 初始評估&初始步驟</button>
+                <button class="flow-btn" onclick="switchFlow('flow2')">2. 呼吸道處理</button>
+                <button class="flow-btn" onclick="switchFlow('flow3')">3. 胸部按壓與急救藥物</button>
+            </div>
+            
+            <div class="hint-text">💡 點擊流程圖中的方塊，可查看詳細操作清單與藥物劑量</div>
+
+            <div class="flow-wrapper">
+                <div id="flow1" class="mermaid-container">
+                    <div class="mermaid">
+                    %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#3a577b', 'primaryTextColor': '#fff', 'lineColor': '#0e2f5f' }}}%%
+                    graph TD
+                        classDef blueBox fill:#3a577b,stroke:#0e2f5f,color:white,rx:5,ry:5,stroke-width:2px;
+                        classDef orangeBox fill:#fff,stroke:#ff6a00,color:#ff6a00,stroke-width:3px,stroke-dasharray: 5 5;
+                        classDef decision fill:#5188cc,stroke:#0e2f5f,color:white,shape:diamond;
+                        classDef warning fill:#ff6a00,stroke:#d84315,color:white,shape:diamond;
+                        Start(產前諮詢<br/>團隊簡報):::blueBox --> Birth((出生)):::decision
+                        Birth -- 足月/張力佳/有哭? --> Routine(常規照護<br/>與母同室):::blueBox
+                        Birth -- 否 --> Initial(初始步驟 A<br/>保暖/擺位/抽吸/刺激):::blueBox
+                        Initial --> Check1{無呼吸/喘<br/>或<br/>HR < 100?}:::warning
+                        Check1 -- 否 --> BreathDiff{呼吸費力<br/>或發紺?}:::decision
+                        BreathDiff -- 是 --> CPAP(CPAP 氣道正壓<br/>接上 SpO2):::orangeBox
+                        BreathDiff -- 否 --> Routine
+                        Check1 -- 是 --> PPV_Start(給予 PPV 正壓換氣<br/>接上 SpO2 / ECG):::warning
+                        click Start call showDetail("prenatal")
+                        click Routine call showDetail("routine")
+                        click Initial call showDetail("initial_steps")
+                        click CPAP call showDetail("cpap")
+                        click PPV_Start call showDetail("ppv_indication")
+                    </div>
+                </div>
+                <div id="flow2" class="mermaid-container mermaid-hidden">
+                    <div class="mermaid">
+                    %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#3a577b', 'primaryTextColor': '#fff', 'lineColor': '#0e2f5f' }}}%%
+                    graph TD
+                        classDef blueBox fill:#3a577b,stroke:#0e2f5f,color:white,rx:5,ry:5,stroke-width:2px;
+                        classDef orangeBox fill:#fff,stroke:#ff6a00,color:#ff6a00,stroke-width:3px;
+                        classDef decision fill:#5188cc,stroke:#0e2f5f,color:white,shape:diamond;
+                        classDef warning fill:#ff6a00,stroke:#d84315,color:white,shape:diamond;
+                        PPV(PPV 正壓換氣):::blueBox --> CheckEffect{15秒後評估<br/>心跳升? 胸起伏?}:::decision
+                        CheckEffect -- 否 --> MRSOPA(矯正步驟 MR. SOPA):::orangeBox
+                        MRSOPA --> Reassess(再評估心跳與起伏):::decision
+                        Reassess -- 仍無效 --> Airway(建立高級呼吸道<br/>LMA 或 插管):::blueBox
+                        CheckEffect -- 有效 --> ContinuePPV(持續有效 PPV 30秒):::blueBox
+                        Airway --> ContinuePPV
+                        ContinuePPV --> HRCheck{心跳 < 100 ?}:::decision
+                        HRCheck -- 否 --> PostCare(復甦後照護):::blueBox
+                        HRCheck -- 是 --> HR60Check{⚠️ 心跳 < 60 ?}:::warning
+                        HR60Check -- 否 --> CheckTech(檢查通氣/氧氣濃度):::blueBox
+                        HR60Check -- 是 --> Compressions(進入胸外按壓階段):::warning
+                        click PPV call showDetail("ppv_tech")
+                        click MRSOPA call showDetail("mrsopa")
+                        click Airway call showDetail("airway_size")
+                        click HR60Check call showDetail("hr_critical")
+                    </div>
+                </div>
+                <div id="flow3" class="mermaid-container mermaid-hidden">
+                    <div class="mermaid">
+                    %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#3a577b', 'primaryTextColor': '#fff', 'lineColor': '#0e2f5f' }}}%%
+                    graph TD
+                        classDef blueBox fill:#3a577b,stroke:#0e2f5f,color:white,rx:5,ry:5,stroke-width:2px;
+                        classDef orangeBox fill:#fff,stroke:#ff6a00,color:#ff6a00,stroke-width:3px;
+                        classDef critical fill:#d84315,stroke:#333,color:white,rx:5,ry:5,stroke-width:2px,shadow:5px;
+                        classDef warning fill:#ff6a00,stroke:#d84315,color:white,shape:diamond;
+                        StartCPR(胸外按壓 + PPV<br/>100% O2):::critical --> CPR60(按壓 60 秒):::blueBox
+                        CPR60 --> Reassess{心跳仍 < 60 ?}:::warning
+                        Reassess -- 否 --> StopCPR(停止按壓<br/>恢復 PPV):::blueBox
+                        Reassess -- 是 --> Epi(給予 Epinephrine<br/>IV/IO 優先):::critical
+                        Epi --> EpiWait(繼續按壓 + 通氣):::blueBox
+                        EpiWait --> Reassess2{心跳仍 < 60 ?}:::warning
+                        Reassess2 -- 否 --> StopCPR
+                        Reassess2 -- 是 --> Causes(考慮低血容/氣胸):::orangeBox
+                        Causes -- 低血容 --> Volume(給予輸液 N/S):::blueBox
+                        Causes -- 氣胸 --> Needle(針刺減壓):::blueBox
+                        click StartCPR call showDetail("cpr_tech")
+                        click Epi call showDetail("epi_dose")
+                        click Volume call showDetail("volume_dose")
+                        click Causes call showDetail("shock_pneumo")
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab2" class="tab-content">
+        <div class="chat-layout">
+            <div class="status-bar">
+                <span id="scenario-badge" class="scenario-tag">請選擇情境</span>
+            </div>
+            <div id="chat-box" class="chat-box"></div>
+            <div class="options-area">
+                <div id="option-grid" class="option-grid">
+                    <button class="opt-btn" onclick="startScenario(1)">情境一：33週 胎盤剝離</button>
+                    <button class="opt-btn" onclick="startScenario(2)">情境二：38週 胎便吸入</button>
+                    <button class="opt-btn" onclick="startScenario(3)">情境三：36週 法洛氏四重症</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab3" class="tab-content">
+        <div class="content-pad">
+            <div class="calc-card">
+                <h3 style="text-align:center; color:var(--primary); margin-bottom:20px;">管路與藥物試算</h3>
+                <div class="input-group">
+                    <label>輸入體重 (kg)</label>
+                    <input type="number" id="weightInput" placeholder="ex: 2.5" step="0.1" oninput="calculate()">
+                </div>
+                <div class="result-box"><div class="result-title">氣管內管尺寸 (ET Tube ID)</div><div class="result-value" id="res-tube">-- mm</div></div>
+                <div class="result-box"><div class="result-title">插管深度 (深度 depth)</div><div class="result-value" id="res-depth">-- cm</div></div>
+                <div class="result-box"><div class="result-title">喉頭鏡葉片 (Blade Size)</div><div class="result-value" id="res-blade">--</div></div>
+                <div class="result-box highlight"><div class="result-title">Epinephrine 急救劑量 (UVC/IO) <br><small>(1:10,000, 0.02 mg/kg)</small></div><div class="result-value highlight-text" id="res-epi-iv">-- ml</div></div>
+                <div class="result-box highlight"><div class="result-title">Epinephrine 急救劑量 (ET) <br><small>(1:10,000, 0.1 mg/kg)</small></div><div class="result-value highlight-text" id="res-epi-et">-- ml</div></div>
+                <div class="result-box"><div class="result-title">大量輸液 (N/S or Blood) <br><small>(10 ml/kg)</small></div><div class="result-value" id="res-fluid">-- ml</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab4" class="tab-content">
+        <div class="content-pad">
+            <div class="metro-container">
+                <h3 style="color:var(--primary);">CPR 節拍器 (3:1)</h3>
+                <p style="color:#666;">每 2 秒完成一循環<br>(90按壓 : 30換氣 / 分鐘)</p>
+                <div class="visual-beat">
+                    <div id="beat1" class="beat-circle beat-1">1</div>
+                    <div id="beat2" class="beat-circle beat-2">2</div>
+                    <div id="beat3" class="beat-circle beat-3">3</div>
+                    <div id="beat4" class="beat-circle beat-breath">換氣</div>
+                </div>
+                <button id="metroBtn" class="metro-btn" onclick="toggleMetronome()">▶ 開始</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab5" class="tab-content">
+        <div class="content-pad">
+            <div class="apgar-card">
+                <h3 style="text-align:center; color:var(--primary); margin:0;">Apgar Score Timer</h3>
+                <div class="timer-display" id="apgarTimer">00:00</div>
+                <div class="timer-controls">
+                    <button class="timer-btn btn-start" onclick="toggleApgarTimer()" id="apgarStartBtn">開始計時</button>
+                    <button class="timer-btn btn-reset" onclick="resetApgarTimer()">重置</button>
+                </div>
+                <div id="apgar-calc"></div>
+                <div class="score-display">總分：<span class="total-score" id="totalScore">0</span></div>
+                <div class="record-area">
+                    <button class="record-btn" onclick="recordScore(1)">📥 存入 1分鐘</button>
+                    <button class="record-btn" onclick="recordScore(5)">📥 存入 5分鐘</button>
+                </div>
+                <div class="record-result">
+                    <span>1 min: <strong id="rec-1min">--</strong></span>
+                    <span>5 min: <strong id="rec-5min">--</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<div id="detailModal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-card">
+        <div class="modal-title" id="m-title">標題</div>
+        <div class="modal-body" id="m-body">內容</div>
+        <button class="modal-close" onclick="document.getElementById('detailModal').style.display='none'">關閉</button>
+    </div>
+</div>
+
+<nav>
+    <button onclick="switchTab('tab1')" id="btn-tab1" class="active"><span>📊</span>流程圖</button>
+    <button onclick="switchTab('tab2')" id="btn-tab2"><span>💬</span>演練</button>
+    <button onclick="switchTab('tab3')" id="btn-tab3"><span>🧮</span>計算</button>
+    <button onclick="switchTab('tab4')" id="btn-tab4"><span>⚡</span>CPR</button>
+    <button onclick="switchTab('tab5')" id="btn-tab5"><span>👶</span>Apgar</button>
+</nav>
+
+<script>
+    // Initialize Mermaid
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', theme: 'base' });
+
+    // ============ Part 1 Logic (Modal Data updated with v3 content) ============
+    const detailContent = {
+        prenatal: { title: "產前諮詢 (4個問題)", body: "<ul><li><strong>預產期週數？</strong> (決定設備尺寸)</li><li><strong>羊水清澈嗎？</strong> (胎便?)</li><li><strong>預期風險因子？</strong> (妊娠高血壓、多胞胎?)</li><li><strong>臍帶處置計畫？</strong> (是否延遲斷臍?)</li></ul>" },
+        routine: { title: "常規照護", body: "<ul><li>與母親肌膚接觸 (Skin-to-skin)</li><li>蓋上溫暖乾毛巾</li><li>持續評估呼吸、張力、膚色</li></ul>" },
+        initial_steps: { title: "初始步驟 (Initial Steps)", body: "<ul><li><strong>保暖：</strong>維持體溫 36.5-37.5°C</li><li><strong>擺位：</strong>嗅吸姿勢 (Sniffing position)</li><li><strong>抽吸：</strong>先口後鼻 (M before N)，僅在有阻塞時執行</li><li><strong>擦乾：</strong>移除濕毛巾</li><li><strong>刺激：</strong>摩擦背部或輕彈腳底</li></ul>" },
+        cpap: { title: "CPAP 使用指引", body: "<ul><li><strong>適應症：</strong>有自主呼吸但呼吸費力，或持續發紺</li><li><strong>壓力設定：</strong>至少 5 cmH2O</li><li><strong>監測：</strong>必須接上 SpO2</li></ul>" },
+        ppv_indication: { title: "PPV 適應症", body: "<ul><li>無呼吸 (Apnea) 或 喘息 (Gasping)</li><li>心跳 < 100 bpm</li><li><strong>重要：</strong>給予 PPV 時應設置 ECG 導程以準確監測心跳</li></ul>" },
+        ppv_tech: { title: "正壓換氣 (PPV) 技巧", body: "<ul><li><strong>頻率：</strong>每分鐘 40-60 次</li><li><strong>口訣：</strong>吹-二-三 (Breath-Two-Three)</li><li><strong>壓力：</strong>初始 PIP 20-25 cmH2O (足月)，PEEP 5 cmH2O</li></ul>" },
+        mrsopa: { title: "MR. SOPA 矯正步驟", body: "<ul><li><strong>M (Mask)：</strong>調整面罩密合度</li><li><strong>R (Reposition)：</strong>重新擺位氣道</li><li><strong>S (Suction)：</strong>抽吸口鼻</li><li><strong>O (Open mouth)：</strong>張開嘴巴</li><li><strong>P (Pressure)：</strong>增加壓力 (每次加 5-10, max 40)</li><li><strong>A (Airway)：</strong>考慮人工氣道 (插管/LMA)</li></ul>" },
+        airway_size: { title: "氣管內管尺寸建議", body: "<ul><li>< 1000g / < 28w : <strong>2.5號氣管內管</strong></li><li>1000-2000g / 28-34w : <strong>3號氣管內管</strong></li><li>> 2000g / > 34w : <strong>3.5號氣管內管</strong></li><li>深度估算：體重(kg) + 6 cm</li></ul>" },
+        hr_critical: { title: "關鍵決策點", body: "<strong style='color:red'>心跳 < 60 bpm？</strong><br>這表示心輸出量不足。<br>如果已完成有效通氣 30 秒心跳仍低，必須開始壓胸。" },
+        cpr_tech: { title: "胸外按壓技巧", body: "<ul><li><strong>位置：</strong>兩乳頭連線下方胸骨處</li><li><strong>深度：</strong>胸廓前後徑 1/3</li><li><strong>方法：</strong>雙拇指環抱法 (兩人操作)</li><li><strong>比例：</strong>3:1 (90次按壓 : 30次通氣)</li><li><strong>氧氣：</strong>調至 100%</li></ul>" },
+        epi_dose: { title: "Epinephrine 腎上腺素", body: "<ul><li><strong>濃度：</strong>1:10,000 (0.1 mg/mL)</li><li><strong>IV/IO 劑量 (首選)：</strong>0.02 mg/kg (0.2 mL/kg)<br><span style='color:red'>→ 給藥後 Flush N/S 3ml</span></li><li><strong>ET 劑量 (氣管內)：</strong>0.1 mg/kg (1 mL/kg)<br><span style='color:red'>→ 給藥後 Ambu-bagging (PPV)</span></li></ul>" },
+        volume_dose: { title: "擴容劑 (Volume Expander)", body: "<ul><li><strong>適應症：</strong>有休克徵象 (膚色蒼白、脈搏微弱) 或曾有大量失血</li><li><strong>種類：</strong>Normal Saline 或 O型 Rh陰性血</li><li><strong>劑量：</strong>10 mL/kg</li><li><strong>速度：</strong>5-10 分鐘內給予</li></ul>" },
+        shock_pneumo: { title: "持續心跳過低原因", body: "<ul><li><strong>低血容：</strong>給予輸液</li><li><strong>氣胸：</strong>聽診呼吸音，透光測試，針刺減壓</li><li><strong>管路滑脫/阻塞：</strong>重新檢查 DOPE</li></ul>" }
+    };
+
+    window.showDetail = function(key) {
+        const data = detailContent[key];
+        if(data) {
+            document.getElementById('m-title').innerHTML = data.title;
+            document.getElementById('m-body').innerHTML = data.body;
+            document.getElementById('detailModal').style.display = 'flex';
+        }
+    };
+
+    window.closeModal = function(e) {
+        if(e.target.className === 'modal-overlay') {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+    }
+
+    function switchFlow(flowId) {
+        document.querySelectorAll('.mermaid-container').forEach(el => el.classList.add('mermaid-hidden'));
+        document.getElementById(flowId).classList.remove('mermaid-hidden');
+        document.querySelectorAll('.flow-btn').forEach(el => el.classList.remove('active'));
+        if(flowId === 'flow1') document.querySelectorAll('.flow-btn')[0].classList.add('active');
+        if(flowId === 'flow2') document.querySelectorAll('.flow-btn')[1].classList.add('active');
+        if(flowId === 'flow3') document.querySelectorAll('.flow-btn')[2].classList.add('active');
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        document.getElementById('btn-' + tabId).classList.add('active');
+    }
+
+    // ============ Part 2 Logic: Chatbot (Team Member Update) ============
+    let currentScenarioId = 0;
+    const chatBox = document.getElementById('chat-box');
+    const optGrid = document.getElementById('option-grid');
+    const badge = document.getElementById('scenario-badge');
+
+    const stories = {
+        1: {
+            title: "情境一：33週早產 (胎盤剝離)",
+            startNode: 's1_start',
+            nodes: {
+                's1_start': { msg: "【產房通報】<br>33週產婦，胎兒預估 1800gm。<br>因胎盤早期剝離 (Abruption) 需緊急剖腹。<br>羊水：血性 (Bloody)。<br>無延遲斷臍計畫。<br>你是急救團隊成員，請選擇器材準備。", options: [{ text: "準備 3.0 號氣管內管, Blade 0號", next: 's1_birth', correct: true }, { text: "準備 2.5 號氣管內管, Blade 00號", next: 's1_fail_tube', correct: false }, { text: "準備 3.5 號氣管內管, Blade 1號", next: 's1_fail_tube', correct: false }] },
+                's1_fail_tube': { msg: "❌ 錯誤選擇。<br>1800gm (1-2kg) 應選擇 3.0 號氣管內管。<br>器材準備不當會延誤急救。", isFail: true },
+                's1_birth': { msg: "【寶寶出生】<br>全身癱軟 (Limp)，沒有呼吸，膚色蒼白。<br>你是急救團隊成員，處置？", options: [{ text: "立刻氣管插管", next: 's1_fail_intubate', correct: false }, { text: "至處理台：保暖、擺位、抽吸口鼻、擦乾刺激", next: 's1_initial', correct: true }] },
+                's1_fail_intubate': { msg: "❌ 流程錯誤。<br>除非氣道阻塞，否則應先執行初始步驟與 PPV，不應直接插管。", isFail: true },
+                's1_initial': { msg: "【初始步驟後】<br>寶寶仍無呼吸 (Apnea)，心跳 80 bpm。<br>你是急救團隊成員，下一步？", options: [{ text: "給予 100% 氧氣 (自由流動)", next: 's1_fail_o2', correct: false }, { text: "給予 PPV (正壓換氣) + 接上 SpO2/ECG", next: 's1_ppv', correct: true }] },
+                's1_fail_o2': { msg: "❌ 處置無效。<br>Apnea (無呼吸) 必須給予 PPV 才能建立通氣，單純給氧氣無法解決換氣問題。", isFail: true },
+                's1_ppv': { msg: "【PPV 進行中】<br>你開始執行 PPV。<br>你是急救團隊成員，請選出正確的口訣與頻率。", options: [{ text: "吹-二-三 (40-60次/分)", next: 's1_mrsopa', correct: true }, { text: "壓-停-壓-停 (100次/分)", next: 's1_fail_rate', correct: false }] },
+                's1_fail_rate': { msg: "❌ 頻率錯誤。<br>這是壓胸的頻率，通氣頻率應為 40-60 次/分。", isFail: true },
+                's1_mrsopa': { msg: "【評估】<br>PPV 15秒後，心跳沒上升，胸廓無起伏。<br>你執行 MR. SOPA 矯正後，看見胸廓有起伏了。<br>持續有效通氣30秒後，心跳掉到 50 bpm。<br>你是急救團隊成員，下一步？", options: [{ text: "增加 PPV 壓力", next: 's1_fail_pressure', correct: false }, { text: "開始壓胸 (插管+100%氧氣)", next: 's1_cpr', correct: true }] },
+                's1_fail_pressure': { msg: "❌ 決策錯誤。<br>胸廓已有起伏代表通氣成功，若心跳仍 < 60，應進入胸外按壓階段。", isFail: true },
+                's1_cpr': { msg: "【急救藥物】<br>壓胸與通氣 (3:1) 進行60秒後，心跳 40 bpm。<br>需給予 Epinephrine (IV/IO)。<br>寶寶 1.8 kg。<br>你是急救團隊成員，請計算劑量 (0.02 mg/kg, 1:10000)。", options: [{ text: "給予 0.36 ml + Flush N/S 3ml", next: 's1_volume', correct: true }, { text: "給予 1.8 ml + Flush N/S 3ml", next: 's1_fail_dose', correct: false }] },
+                's1_fail_dose': { msg: "❌ 劑量錯誤。<br>1.8 ml 是氣管內管劑量 (0.1 mg/kg)。<br>靜脈注射應為 0.02 mg/kg (約 0.36 ml)。", isFail: true },
+                's1_volume': { msg: "【最終判斷】<br>給藥後心跳微升至 58 bpm，膚色極度蒼白。<br>考慮胎盤剝離病史，懷疑低血容休克。<br>你是急救團隊成員，處置？", options: [{ text: "給予 N/S 18 ml (擴容)", next: 's1_success', correct: true }, { text: "再給一劑 Epinephrine", next: 's1_fail_shock', correct: false }] },
+                's1_fail_shock': { msg: "❌ 判斷失誤。<br>有大量失血病史且膚色蒼白，應優先矯正低血容。", isFail: true },
+                's1_success': { msg: "🎉 恭喜！<br>給予輸液後，寶寶心跳回升至 130 bpm，膚色轉紅。<br>轉送 NICU 觀察。", isSuccess: true }
+            }
+        },
+        2: {
+            title: "情境二：38週足月 (胎便吸入)",
+            startNode: 's2_start',
+            nodes: {
+                's2_start': { msg: "【產房通報】<br>38週，預估 3000gm。<br>胎心音下降，羊水有胎便 (MSAF)。<br>母親有妊娠高血壓。<br>你是急救團隊成員，請選擇管路與器材。", options: [{ text: "3.5 號氣管內管, Blade 1號", next: 's2_birth', correct: true }, { text: "3.0 號氣管內管, Blade 0號", next: 's2_fail_size', correct: false }] },
+                's2_fail_size': { msg: "❌ 尺寸太小。<br>3kg 足月兒應使用 3.5 號氣管內管與 1 號葉片。", isFail: true },
+                's2_birth': { msg: "【出生】<br>寶寶出生，活力差，不哭，全身沾滿胎便。<br>你是急救團隊成員，處置？", options: [{ text: "立刻插管抽吸胎便", next: 's2_fail_suction', correct: false }, { text: "至處理台：保暖、擺位、抽吸口鼻 (因阻塞)", next: 's2_initial', correct: true }] },
+                's2_fail_suction': { msg: "❌ 指引更新。<br>NRP 目前不再建議常規插管抽吸胎便 (即便是活力差的寶寶)，除非呼吸道阻塞無法通氣。", isFail: true },
+                's2_initial': { msg: "【評估】<br>抽吸口鼻後，寶寶仍無呼吸 (Apnea)，心跳 90 bpm。<br>你是急救團隊成員，下一步？", options: [{ text: "給予 PPV 正壓換氣", next: 's2_ppv', correct: true }, { text: "繼續刺激", next: 's2_fail_stim', correct: false }] },
+                's2_fail_stim': { msg: "❌ 延誤治療。<br>無呼吸且心跳 < 100，應立即開始 PPV。", isFail: true },
+                's2_ppv': { msg: "【通氣】<br>PPV 15秒後，心跳上升至 110 bpm，開始有自發性呼吸。<br>但在拔管準備常規照護時，發現寶寶呼吸費力且發紺。<br>SpO2 80% (目標 90%)。<br>你是急救團隊成員，處置？", options: [{ text: "使用 CPAP + SpO2 監測", next: 's2_success', correct: true }, { text: "再次插管", next: 's2_fail_aggressive', correct: false }] },
+                's2_fail_aggressive': { msg: "❌ 過度處置。<br>心跳 > 100 且有自發呼吸，但費力，應先嘗試 CPAP。", isFail: true },
+                's2_success': { msg: "🎉 恭喜！<br>寶寶在 CPAP 支持下呼吸改善，SpO2 穩定。<br>急救成功。", isSuccess: true }
+            }
+        },
+        3: {
+            title: "情境三：36週 (TOF)",
+            startNode: 's3_start',
+            nodes: {
+                's3_start': { msg: "【產房通報】<br>36週，預估 2700gm。<br>產前診斷：法洛氏四重症 (TOF)。<br>羊水乾淨。<br>你是急救團隊成員，請預備器材重點。", options: [{ text: "準備 SpO2 探頭接右手 (導管前)", next: 's3_birth', correct: true }, { text: "準備 100% 氧氣預防發紺", next: 's3_fail_o2prep', correct: false }] },
+                's3_fail_o2prep': { msg: "❌ 觀念錯誤。<br>TOF 寶寶未必需要高濃度氧氣，過多氧氣可能導致動脈導管關閉。SpO2 監測才是重點。", isFail: true },
+                's3_birth': { msg: "【出生】<br>寶寶出生，有哭聲，肌張力尚可。<br>但在常規照護時發現全身發紺。<br>你是急救團隊成員，處置？", options: [{ text: "立刻給予 PPV", next: 's3_fail_ppv', correct: false }, { text: "接上 SpO2 (右手) 監測血氧", next: 's3_assess', correct: true }] },
+                's3_fail_ppv': { msg: "❌ 處置錯誤。<br>寶寶有哭聲且呼吸順暢，不需要 PPV。發紺需先由數值判斷。", isFail: true },
+                's3_assess': { msg: "【監測】<br>出生 2 分鐘，SpO2 顯示 60% (目標 65-70%)。<br>寶寶呼吸平順，心跳 140 bpm。<br>你是急救團隊成員，處置？", options: [{ text: "觀察即可", next: 's3_fail_watch', correct: false }, { text: "調整 FiO2 (給予氧氣) 嘗試達標", next: 's3_success', correct: true }] },
+                's3_fail_watch': { msg: "❌ 判斷錯誤。<br>雖然是 TOF，但 60% 低於目標值 (65%)，仍應給予適度氧氣支持。", isFail: true },
+                's3_success': { msg: "🎉 恭喜！<br>給予氧氣後 SpO2 維持在 75-80% 安全範圍。<br>寶寶生命徵象穩定，轉送 NICU 進行心臟評估。", isSuccess: true }
+            }
+        }
+    };
+
+    function startScenario(id) {
+        currentScenarioId = id;
+        updateStatus(stories[id].title);
+        chatBox.innerHTML = ''; renderNode(stories[id].startNode);
+    }
+    function renderNode(nodeId) {
+        const scenario = stories[currentScenarioId];
+        const node = scenario.nodes[nodeId];
+        const sysDiv = document.createElement('div'); sysDiv.className = 'msg msg-sys'; sysDiv.innerHTML = node.msg; chatBox.appendChild(sysDiv); scrollToBottom();
+        optGrid.innerHTML = '';
+        if (node.isFail) { chatBox.innerHTML += `<div class="game-over">任務失敗：請重新挑戰</div>`; optGrid.innerHTML = `<button class="opt-btn" onclick="startScenario(${currentScenarioId})">🔄 重新開始</button><button class="opt-btn" onclick="resetGame()">🏠 回主選單</button>`; return; }
+        if (node.isSuccess) { chatBox.innerHTML += `<div class="game-success">任務完成！</div>`; optGrid.innerHTML = `<button class="opt-btn" onclick="resetGame()">🏠 回主選單</button>`; return; }
+        node.options.forEach(opt => { const btn = document.createElement('button'); btn.className = 'opt-btn'; btn.innerText = opt.text; btn.onclick = () => handleChoice(opt); optGrid.appendChild(btn); });
+    }
+    function handleChoice(option) {
+        const userDiv = document.createElement('div'); userDiv.className = 'msg msg-user'; userDiv.innerText = option.text; chatBox.appendChild(userDiv); scrollToBottom();
+        setTimeout(() => { renderNode(option.next); }, 500);
+    }
+    function resetGame() {
+        chatBox.innerHTML = '';
+        optGrid.innerHTML = `<button class="opt-btn" onclick="startScenario(1)">情境一：33週 胎盤剝離</button><button class="opt-btn" onclick="startScenario(2)">情境二：38週 胎便吸入</button><button class="opt-btn" onclick="startScenario(3)">情境三：36週 法洛氏四重症</button>`;
+        badge.innerText = "請選擇情境"; badge.style.backgroundColor = "var(--primary)";
+    }
+    function updateStatus(title) { if(title) { badge.innerText = title; badge.style.backgroundColor = "var(--highlight)"; } }
+    function scrollToBottom() { chatBox.scrollTop = chatBox.scrollHeight; }
+
+    // ============ Part 3 Logic: Calculator ============
+    function calculate() {
+        const wt = parseFloat(document.getElementById('weightInput').value);
+        if (!wt || wt <= 0) { document.querySelectorAll('.result-value').forEach(el => el.innerText = "--"); return; }
+        let size = "3.5"; if (wt < 1.0) size = "2.5"; else if (wt < 2.0) size = "3.0";
+        document.getElementById('res-tube').innerText = size + " mm";
+        document.getElementById('res-depth').innerText = (6 + wt).toFixed(1) + " cm";
+        document.getElementById('res-blade').innerText = (wt < 2.5) ? "No. 0 (早產兒)" : "No. 1 (足月兒)";
+        document.getElementById('res-epi-iv').innerText = (0.2 * wt).toFixed(2) + " ml";
+        document.getElementById('res-epi-et').innerText = (1.0 * wt).toFixed(1) + " ml";
+        document.getElementById('res-fluid').innerText = (10 * wt).toFixed(0) + " ml";
+    }
+
+    // ============ Part 4 Logic: Metronome ============
+    let audioCtx; let metroInterval; let isPlaying = false; let beatCount = 0;
+    function playTone(freq, duration, type) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        osc.stop(audioCtx.currentTime + duration);
+    }
+    function toggleMetronome() {
+        const btn = document.getElementById('metroBtn');
+        if (isPlaying) { clearInterval(metroInterval); isPlaying = false; btn.innerText = "▶ 開始"; btn.classList.remove('playing'); resetVisuals(); }
+        else {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            isPlaying = true; btn.innerText = "■ 停止"; btn.classList.add('playing'); beatCount = 0; runBeat(); metroInterval = setInterval(runBeat, 500);
+        }
+    }
+    function runBeat() {
+        resetVisuals();
+        if (beatCount < 3) { playTone(600, 0.1, 'sine'); document.getElementById('beat' + (beatCount + 1)).classList.add('active'); }
+        else { playTone(400, 0.3, 'triangle'); document.getElementById('beat4').classList.add('active'); }
+        beatCount++; if (beatCount > 3) beatCount = 0;
+    }
+    function resetVisuals() { document.querySelectorAll('.beat-circle').forEach(el => el.classList.remove('active')); }
+
+    // ============ Part 5 Logic: Apgar Timer & Calc ============
+    let apgarInterval; let apgarSeconds = 0; let apgarRunning = false;
+    function toggleApgarTimer() {
+        const btn = document.getElementById('apgarStartBtn');
+        if(apgarRunning) { clearInterval(apgarInterval); apgarRunning = false; btn.innerText = "繼續計時"; btn.style.background = "#2e7d32"; } 
+        else { apgarInterval = setInterval(apgarTick, 1000); apgarRunning = true; btn.innerText = "暫停"; btn.style.background = "#f57c00"; }
+    }
+    function resetApgarTimer() {
+        clearInterval(apgarInterval); apgarRunning = false; apgarSeconds = 0;
+        document.getElementById('apgarTimer').innerText = "00:00";
+        document.getElementById('apgarStartBtn').innerText = "開始計時";
+        document.getElementById('apgarStartBtn').style.background = "#2e7d32";
+    }
+    function apgarTick() {
+        apgarSeconds++;
+        const mins = Math.floor(apgarSeconds / 60).toString().padStart(2, '0');
+        const secs = (apgarSeconds % 60).toString().padStart(2, '0');
+        document.getElementById('apgarTimer').innerText = `${mins}:${secs}`;
+        if(apgarSeconds === 60) speak('一分鐘');
+        if(apgarSeconds === 300) speak('五分鐘');
+    }
+    function speak(text) {
+        if('speechSynthesis' in window) {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'zh-TW';
+            const voices = window.speechSynthesis.getVoices();
+            const female = voices.find(v => v.lang === 'zh-TW' && (v.name.includes('Female') || v.name.includes('Mei')));
+            if(female) utter.voice = female;
+            window.speechSynthesis.speak(utter);
+        }
+    }
+    // Apgar Data
+    const apgarData = [
+        { id: 'app', label: 'Appearance (膚色)', opts: ['0: 全身發紺/蒼白', '1: 身體紅/四肢紺', '2: 全身紅潤'] },
+        { id: 'pul', label: 'Pulse (心跳)', opts: ['0: 無心跳', '1: < 100 bpm', '2: > 100 bpm'] },
+        { id: 'gri', label: 'Grimace (皺眉/反射)', opts: ['0: 無反應', '1: 皺眉/哭聲弱', '2: 哭/打噴嚏/退縮'] },
+        { id: 'act', label: 'Activity (肌張力)', opts: ['0: 癱軟', '1: 四肢微彎', '2: 動作活躍'] },
+        { id: 'res', label: 'Respiration (呼吸)', opts: ['0: 無呼吸', '1: 慢/不規則', '2: 哭聲宏亮'] }
+    ];
+    let scores = { app:0, pul:0, gri:0, act:0, res:0 };
+    function initApgarCalc() {
+        const container = document.getElementById('apgar-calc');
+        apgarData.forEach(item => {
+            const row = document.createElement('div'); row.className = 'apgar-row';
+            const label = document.createElement('div'); label.className = 'apgar-label'; label.innerText = item.label;
+            const optsDiv = document.createElement('div'); optsDiv.className = 'apgar-options';
+            item.opts.forEach((optText, idx) => {
+                const btn = document.createElement('div'); btn.className = 'apgar-opt';
+                if(idx === 0) btn.classList.add('selected');
+                btn.innerText = optText;
+                btn.onclick = () => {
+                    scores[item.id] = idx;
+                    optsDiv.querySelectorAll('.apgar-opt').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    updateTotalScore();
+                };
+                optsDiv.appendChild(btn);
+            });
+            row.appendChild(label); row.appendChild(optsDiv); container.appendChild(row);
+        });
+    }
+    function updateTotalScore() {
+        const total = scores.app + scores.pul + scores.gri + scores.act + scores.res;
+        document.getElementById('totalScore').innerText = total;
+    }
+    function recordScore(min) {
+        const score = document.getElementById('totalScore').innerText;
+        document.getElementById(`rec-${min}min`).innerText = score + " 分";
+    }
+    initApgarCalc();
+</script>
+
+</body>
+</html>
